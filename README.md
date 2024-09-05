@@ -1,3 +1,10 @@
+# Autotrasher
+
+This fork automatically trashes scanned relics that are below a set score value judged by fribbels's HSR optimizer. The functionality is subpar at best.
+
+
+
+
 # Honkai: Star Rail - Data Scanner
 
 Easily export light cones, relics, and character data from Honkai: Star Rail to JSON format using OCR.

@@ -135,19 +135,30 @@ class Navigation:
         time.sleep(0.5)
         pyautogui.mouseUp()
 
-    def scroll_page_down(self, times_scrolled) -> None:
+    # BAD FORK CODE BEGIN
+    # ====================
+    def scroll_page_down(self, times_scrolled, *, pages: float = 1) -> None:
         """Scroll down one inventory page
 
         For every 4 times scrolled, scroll up once to compensate for imprecision
 
         :param times_scrolled: The number of times scrolled
         """
-        for _ in range(25):
+        # 4 pages = 99 scrolls
+        # 1 page = 24.75 scrolls
+        # 1 scroll = 0.04 pages
+
+        for _ in range(round(25 * pages)):
             self._mouse.scroll(0, -1)
             time.sleep(0.01)
 
+
         if times_scrolled != 0 and times_scrolled % 4 == 0:
-            self._mouse.scroll(0, 1)
+            scroll_offset = (times_scrolled * round(25 * pages)) - (times_scrolled * pages * 24.75)
+            self._mouse.scroll(0, scroll_offset)
+
+    # BAD FORK CODE END
+    # ====================
 
     def print_mouse_position(self) -> None:
         """Print the current mouse position"""

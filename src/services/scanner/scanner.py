@@ -88,6 +88,18 @@ class HSRScanner(QObject):
 
         self._interrupt_event = asyncio.Event()
 
+        # ====================
+        # BAD FORK CODE BEGIN
+
+        import json, os.path
+
+        with open(os.path.expanduser("~/Documents/fribbels-optimizer-save.json")) as file:
+            self.optimizer_data = json.load(file)
+
+        # BAD FORK CODE END
+        # ====================
+
+
     async def start_scan(self) -> dict:
         """Starts the scan
 
@@ -347,11 +359,81 @@ class HSRScanner(QObject):
                         if not all(filter_results.values()):
                             continue
 
+                    # ====================
+                    # BAD FORK CODE BEGIN
+
+                    if strategy.SCAN_TYPE is IncrementType.RELIC_ADD:
+                        breakpoints = {
+                            "lock": {  # anything above will be locked
+                                "All": {"best": 100, "average": 90},
+                                "Custom": {"best": 100, "average": 80},
+                            },
+                            "discard": {  # anything below will be discarded
+                                "All": {"best": 40, "average": 30},
+                                "Custom": {"best": 40, "average": 30},
+                            }
+                        } 
+                        
+                        # taken from SCREENSHOT_COORDS
+                        state_positions = {"lock": (0.940, 0.235), "discard": (0.940, 0.300)}
+
+                        scanned_relic = strategy.parse(stats_dict, item_id)
+                        scanned_relic_substats = {(i["key"].replace("_", "%") if i["key"] in ("ATK_", "DEF_", "HP_") else i["key"].strip("_")):i["value"] for i in scanned_relic["substats"]}
+                        current_state = "discard" if scanned_relic["discard"] else "lock" if scanned_relic["lock"] else "null"
+
+                        for optimizer_relic in self.optimizer_data["relics"]:
+                            if (
+                                scanned_relic["name"] == optimizer_relic["set"]
+                                and scanned_relic["slot"].replace(" ", "") == optimizer_relic["part"]
+                                and scanned_relic["rarity"] == optimizer_relic["grade"]
+                                and scanned_relic["level"] == optimizer_relic["enhance"]
+                                and scanned_relic["mainstat"] == optimizer_relic["main"]["stat"].strip("%")
+                                and all(
+                                    int(scanned_relic_substats.get(optimizer_substat["stat"], -1)) == int(optimizer_substat["value"])
+                                    for optimizer_substat in optimizer_relic["substats"] 
+                                )
+                            ):
+                                state = "null"
+                                msg = f'{optimizer_relic["weights"]["potentialAllCustom"]["averagePct"]:.2f} for average Custom'
+                                for possible_state, state_breakpoints in breakpoints.items():
+                                    for filter_key, filter_breakpoints in state_breakpoints.items():
+                                        for type_key, type_breakpoint in filter_breakpoints.items():
+                                            score = optimizer_relic["weights"]["potentialAll" + filter_key][type_key + "Pct"]
+                                            if possible_state == "lock" and score > type_breakpoint:
+                                                state = "lock"
+                                                msg = f"{score:.2f}% > {type_breakpoint}% for {type_key} {filter_key}"
+                                            if possible_state == "discard" and score < type_breakpoint:
+                                                state = "discard"
+                                                msg = f"{score:.2f}% < {type_breakpoint}% for {type_key} {filter_key}"
+                                
+                                if current_state != state:
+                                    self._log(f"{state}ing! {msg}", level=LogLevel.INFO)
+                                    if current_state != "null":
+                                        self._nav.move_cursor_to(*state_positions[current_state])
+                                        time.sleep(0.05)
+                                        self._nav.click()
+                                        time.sleep(0.4)
+                                    if state != "null":
+                                        self._nav.move_cursor_to(*state_positions[state])
+                                        time.sleep(0.05)
+                                        self._nav.click()
+                                        time.sleep(0.4)
+                                elif state != "null":
+                                    self._log(f"leaving {state}ed. {msg}", level=LogLevel.INFO)
+
+                                break
+                        else:
+                            self._log(f"\nNO MATCH FOR SCAN: {scanned_relic}", level=LogLevel.ERROR)
+
+                    # BAD FORK CODE END
+                    # ====================
+
                     # Update UI count
                     self.update_signal.emit(strategy.SCAN_TYPE.value)
 
-                    task = asyncio.to_thread(strategy.parse, stats_dict, item_id)
-                    tasks.add(task)
+                    if strategy.SCAN_TYPE is not IncrementType.RELIC_ADD:
+                        task = asyncio.to_thread(strategy.parse, stats_dict, item_id)
+                        tasks.add(task)
 
                 # Next row
                 x = nav_data["row_start_top"][0]
@@ -360,7 +442,15 @@ class HSRScanner(QObject):
             if should_stop():
                 break
 
-            self._nav.scroll_page_down(num_times_scrolled)
+            # BAD FORK CODE BEGIN``
+            # ====================
+            if strategy.SCAN_TYPE == IncrementType.RELIC_ADD:
+                self._nav.scroll_page_down(num_times_scrolled, pages=1/5)
+            else:
+                self._nav.scroll_page_down(num_times_scrolled)
+            # BAD FORK CODE END
+            # ====================
+
             num_times_scrolled += 1
             self._log(
                 f"Scrolling inventory, page {num_times_scrolled + 1}.", LogLevel.TRACE
